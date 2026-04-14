@@ -1,7 +1,7 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using GitBashDesktop.Models;
 using GitBashDesktop.Services;
-using GitBashDesktop.Views;
 using Microsoft.Win32;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
@@ -12,6 +12,7 @@ namespace GitBashDesktop.ViewModels
     public partial class DashboardViewModel : ObservableObject
     {
         private readonly GitService _git;
+        private readonly RepoStorageService _storage;
 
         [ObservableProperty] private string _repoName = "No repository open";
         [ObservableProperty] private string _currentBranch = "";
@@ -22,13 +23,51 @@ namespace GitBashDesktop.ViewModels
 
         public ObservableCollection<FileEntry> ChangedFiles { get; } = new();
         public ObservableCollection<FileEntry> StagedFiles { get; } = new();
+        public ObservableCollection<RecentRepo> RecentRepos { get; } = new();
 
         public DashboardViewModel(GitService git)
         {
             _git = git;
+            _storage = new RepoStorageService();
+            LoadRecentRepos();
         }
 
-        // ── Open repo ────────────────────────────────────────────────────────
+        // ── Recent repos ─────────────────────────────────────────────────────
+        private void LoadRecentRepos()
+        {
+            RecentRepos.Clear();
+            foreach (var repo in _storage.Load())
+                RecentRepos.Add(repo);
+        }
+
+        [RelayCommand]
+        private async Task OpenRecentAsync(RecentRepo repo)
+        {
+            if (!repo.Exists)
+            {
+                var remove = MessageBox.Show(
+                    $"The folder '{repo.Path}' no longer exists.\nRemove it from the list?",
+                    "Folder not found", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (remove == MessageBoxResult.Yes)
+                {
+                    _storage.Remove(repo.Path);
+                    LoadRecentRepos();
+                }
+                return;
+            }
+
+            await OpenRepoFromPathAsync(repo.Path);
+        }
+
+        [RelayCommand]
+        private void RemoveRecent(RecentRepo repo)
+        {
+            _storage.Remove(repo.Path);
+            LoadRecentRepos();
+        }
+
+        // ── Open repo ─────────────────────────────────────────────────────────
         [RelayCommand]
         private async Task OpenRepoAsync()
         {
@@ -36,10 +75,12 @@ namespace GitBashDesktop.ViewModels
             {
                 Title = "Select a Git repository folder"
             };
-
             if (dialog.ShowDialog() != true) return;
-            var path = dialog.FolderName;
+            await OpenRepoFromPathAsync(dialog.FolderName);
+        }
 
+        private async Task OpenRepoFromPathAsync(string path)
+        {
             var isRepo = await _git.IsGitRepoAsync(path);
             if (!isRepo)
             {
@@ -57,14 +98,32 @@ namespace GitBashDesktop.ViewModels
 
             HasRepo = true;
             RepoName = System.IO.Path.GetFileName(path);
+
+            _storage.AddOrUpdate(path);
+            LoadRecentRepos();
+
+            Views.MainWindow.Instance?.ReinitBranchesView();
+            Views.MainWindow.NotifyRepoOpened();
+
             await RefreshAsync();
         }
+        [RelayCommand]
+        private void ChangeRepoAsync()
+        {
+            HasRepo = false;
+            RepoName = "No repository open";
+            CurrentBranch = "";
+            ChangedFiles.Clear();
+            StagedFiles.Clear();
+            LoadRecentRepos();
+            Views.MainWindow.UpdateCommandBar("git status", "shows working tree status");
+        }
 
-        // ── Clone repo ───────────────────────────────────────────────────────
+        // ── Clone repo ────────────────────────────────────────────────────────
         [RelayCommand]
         private async Task CloneRepoAsync()
         {
-            var dialog = new CloneDialog();
+            var dialog = new Views.CloneDialog();
             if (dialog.ShowDialog() != true) return;
 
             var dialog2 = new OpenFolderDialog
@@ -74,24 +133,26 @@ namespace GitBashDesktop.ViewModels
             if (dialog2.ShowDialog() != true) return;
 
             IsBusy = true;
-            var result = await _git.CloneAsync(dialog.Url,
-                System.IO.Path.Combine(dialog2.FolderName,
-                    System.IO.Path.GetFileNameWithoutExtension(dialog.Url)));
+            var targetPath = System.IO.Path.Combine(
+                dialog2.FolderName,
+                System.IO.Path.GetFileNameWithoutExtension(dialog.Url));
+
+            var result = await _git.CloneAsync(dialog.Url, targetPath);
 
             if (result.Success)
             {
-                HasRepo = true;
-                RepoName = System.IO.Path.GetFileName(_git.RepoPath);
-                await RefreshAsync();
+                await OpenRepoFromPathAsync(targetPath);
             }
             else
+            {
                 MessageBox.Show("Clone failed. Check the terminal for details.",
                     "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
 
             IsBusy = false;
         }
 
-        // ── Refresh status ───────────────────────────────────────────────────
+        // ── Refresh status ────────────────────────────────────────────────────
         [RelayCommand]
         private async Task RefreshAsync()
         {
@@ -119,8 +180,6 @@ namespace GitBashDesktop.ViewModels
                 if (line.Length < 3) continue;
                 var xy = line[..2];
                 var file = line[3..].Trim();
-
-                // X = staged, Y = unstaged
                 var x = xy[0];
                 var y = xy[1];
 
@@ -144,14 +203,13 @@ namespace GitBashDesktop.ViewModels
             _ => "Changed"
         };
 
-        // ── Stage selected ───────────────────────────────────────────────────
+        // ── Stage ─────────────────────────────────────────────────────────────
         [RelayCommand]
         private async Task StageSelectedAsync()
         {
             foreach (var f in ChangedFiles)
                 if (f.IsSelected)
                     await _git.AddAsync($"\"{f.FileName}\"");
-
             await RefreshAsync();
         }
 
@@ -169,7 +227,7 @@ namespace GitBashDesktop.ViewModels
             await RefreshAsync();
         }
 
-        // ── Commit ───────────────────────────────────────────────────────────
+        // ── Commit ────────────────────────────────────────────────────────────
         [RelayCommand]
         private async Task CommitAsync()
         {
@@ -189,11 +247,35 @@ namespace GitBashDesktop.ViewModels
 
             IsBusy = true;
             var result = await _git.CommitAsync(CommitMessage);
+
             if (result.Success)
+            {
+                var msg = CommitMessage;
                 CommitMessage = "";
+                Views.MainWindow.UpdateCommandBar(
+                    "git status", "shows working tree status");
+                MessageBox.Show($"Committed successfully!\n\n\"{msg}\"",
+                    "Commit done", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show("Commit failed. Check the terminal for details.",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
 
             await RefreshAsync();
             IsBusy = false;
+        }
+
+        partial void OnCommitMessageChanged(string value)
+        {
+            var message = string.IsNullOrWhiteSpace(value)
+                ? "..."
+                : value.Length > 30 ? value[..30] + "..." : value;
+
+            Views.MainWindow.UpdateCommandBar(
+                $"git commit -m \"{message}\"",
+                "commits staged files with your message");
         }
     }
 

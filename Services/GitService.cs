@@ -110,6 +110,25 @@ namespace GitBashDesktop.Services
 
         public async Task<GitResult> GetBranchesAsync()
             => await RunAsync("branch -a");
+        public async Task<string> GetDefaultBranchAsync()
+        {
+            var result = await RunAsync("symbolic-ref refs/remotes/origin/HEAD --short");
+            if (result.Success)
+            {
+                // Returns something like "origin/main" — strip the remote prefix
+                var branch = result.Output.Trim();
+                return branch.Contains("/")
+                    ? branch.Substring(branch.LastIndexOf('/') + 1)
+                    : branch;
+            }
+
+            // Fallback — check common default names
+            var branches = await RunAsync("branch");
+            if (branches.Output.Contains("main")) return "main";
+            if (branches.Output.Contains("master")) return "master";
+
+            return "main";
+        }
 
         public async Task<GitResult> GetCurrentBranchAsync()
             => await RunAsync("rev-parse --abbrev-ref HEAD");

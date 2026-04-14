@@ -28,9 +28,9 @@
             <SolidColorBrush x:Key="TextWhiteBrush" Color="{StaticResource TextWhite}"/>
             <SolidColorBrush x:Key="AccentBlueBrush" Color="{StaticResource AccentBlue}"/>
             <SolidColorBrush x:Key="AccentBlueHoverBrush" Color="{StaticResource AccentBlueHover}"/>
-            <SolidColorBrush x:Key="TerminalTextBrush" Color="#1E1E1E"/>
-            <SolidColorBrush x:Key="TerminalMutedBrush" Color="#555555"/>
-            <SolidColorBrush x:Key="TerminalBorderBrush" Color="#CCCCCC"/>
+            <SolidColorBrush x:Key="TerminalTextBrush" Color="#CCCCCC"/>
+            <SolidColorBrush x:Key="TerminalMutedBrush" Color="#858585"/>
+            <SolidColorBrush x:Key="TerminalBorderBrush" Color="#3E3E42"/>
 
             <!-- Sidebar button style -->
             <Style x:Key="SidebarButtonStyle" TargetType="Button">

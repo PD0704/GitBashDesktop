@@ -9,19 +9,30 @@ namespace GitBashDesktop.Views
     {
         private bool _isDark = true;
         private Button? _activeButton;
-
+        private DashboardView? _dashboardView;
+        private BranchesView? _branchesView;
+        public static bool RepoIsOpen => Git.HasRepo;
+        public bool RepoVisible => Git.HasRepo;
         // Shared across all views
         public static GitService Git { get; private set; } = new GitService();
         public static Action<string>? TerminalCallback { get; private set; }
-
+        public static MainWindow? Instance { get; private set; }
         public MainWindow()
         {
             InitializeComponent();
+            Instance = this;
             TerminalCallback = AppendTerminal;
             // Hook terminal output to the terminal panel
             Git.Initialize("", AppendTerminal);
             LoadGitUser();
+            InitViews();
             NavigateTo("dashboard", null);
+        }
+
+        private void InitViews()
+        {
+            _dashboardView = new DashboardView(Git);
+            _branchesView = new BranchesView(Git);
         }
 
         private void AppendTerminal(string text)
@@ -29,6 +40,38 @@ namespace GitBashDesktop.Views
             Dispatcher.Invoke(() =>
             {
                 TerminalOutput.Text += text + "\n";
+                TerminalScroller.ScrollToEnd();
+            });
+        }
+        public static void UpdateSidebarRepo(string repoName)
+        {
+            Instance?.Dispatcher.Invoke(() =>
+            {
+                if (Instance == null) return;
+                Instance.SidebarRepoName.Text = repoName;
+                // Refresh binding
+                Instance.MainWindowRoot?.InvalidateProperty(
+                    Window.ContentProperty);
+            });
+        }
+        private ScrollViewer? FindScrollViewer(DependencyObject obj)
+        {
+            if (obj is ScrollViewer sv) return sv;
+            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(obj); i++)
+            {
+                var child = VisualTreeHelper.GetChild(obj, i);
+                var result = FindScrollViewer(child);
+                if (result != null) return result;
+            }
+            return null;
+        }
+
+        public static void UpdateCommandBar(string command, string explanation)
+        {
+            Instance?.Dispatcher.Invoke(() =>
+            {
+                Instance.CommandPreviewText.Text = command;
+                Instance.CommandExplainText.Text = explanation;
             });
         }
 
@@ -66,6 +109,15 @@ namespace GitBashDesktop.Views
 
         private void NavigateTo(string? page, Button? btn)
         {
+            // Block navigation to other pages if no repo open
+            if (!Git.HasRepo && page != "dashboard" && page != "settings")
+            {
+                MessageBox.Show(
+                    "Please open a repository first.",
+                    "No repository", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
             // Highlight active button
             if (_activeButton != null)
                 _activeButton.Background = Brushes.Transparent;
@@ -73,22 +125,20 @@ namespace GitBashDesktop.Views
             if (btn != null)
             {
                 btn.Background = new SolidColorBrush(
-                                (Color)ColorConverter.ConvertFromString(_isDark ? "#37373D" : "#D0D0D0"));
+                    (Color)ColorConverter.ConvertFromString(_isDark ? "#37373D" : "#D0D0D0"));
                 _activeButton = btn;
             }
 
-            // Swap content
             MainContent.Content = page switch
             {
-                "dashboard" => new DashboardView(Git),
-                "branches" => new BranchesView(),
+                "dashboard" => _dashboardView,
+                "branches" => Git.HasRepo ? _branchesView : _dashboardView,
                 "history" => new CommitHistoryView(),
                 "conflicts" => new MergeConflictsView(),
                 "settings" => new SettingsView(),
-                _ => new DashboardView(Git)
+                _ => _dashboardView
             };
 
-            // Update command bar
             CommandPreviewText.Text = page switch
             {
                 "dashboard" => "git status",
@@ -179,6 +229,30 @@ namespace GitBashDesktop.Views
         {
             MessageBox.Show("Account switching coming soon!", "Switch Account",
                 MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        public static void NotifyRepoOpened()
+        {
+            Instance?.Dispatcher.Invoke(() =>
+            {
+                Instance?.UpdateRepoState();
+                if (Instance != null)
+                    Instance.SidebarRepoName.Text = Git.RepoPath != ""
+                        ? System.IO.Path.GetFileName(Git.RepoPath)
+                        : "";
+            });
+        }
+
+        private void UpdateRepoState()
+        {
+            // If no repo, force back to dashboard
+            if (!Git.HasRepo)
+                NavigateTo("dashboard", null);
+        }
+
+        public void ReinitBranchesView()
+        {
+            _branchesView = new BranchesView(Git);
         }
     }
 }
