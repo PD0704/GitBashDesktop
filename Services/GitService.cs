@@ -241,6 +241,22 @@ namespace GitBashDesktop.Services
             return process.ExitCode == 0;
         }
 
+        public async Task<GitResult> GetBranchNamesAsync()
+    => await RunAsync("branch --format=%(refname:short)");
+
+        public async Task<GitResult> GetLogForBranchAsync(string branch, int count = 100)
+            => await RunAsync(
+                $"log {branch} --pretty=format:\"%H|%an|%ae|%ad|%s\" --date=short -n {count}");
+
+        public async Task<GitResult> GetFileDiffAsync(string hash, string filePath)
+            => await RunAsync($"show {hash} -- \"{filePath}\"");
+
+        public async Task<GitResult> RevertCommitAsync(string hash)
+            => await RunAsync($"revert {hash} --no-edit");
+
+        public async Task<GitResult> CreateBranchFromCommitAsync(string branchName, string hash)
+            => await RunAsync($"checkout -b {branchName} {hash}");
+
         // ── Terminal helper ──────────────────────────────────────────────────
         private void PrintToTerminal(string text)
         {

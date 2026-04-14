@@ -133,7 +133,7 @@ namespace GitBashDesktop.Views
             {
                 "dashboard" => _dashboardView,
                 "branches" => Git.HasRepo ? _branchesView : _dashboardView,
-                "history" => new CommitHistoryView(),
+                "history" => Git.HasRepo ? new CommitHistoryView(Git) : _dashboardView,
                 "conflicts" => new MergeConflictsView(),
                 "settings" => new SettingsView(),
                 _ => _dashboardView
