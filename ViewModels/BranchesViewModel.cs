@@ -113,9 +113,9 @@ namespace GitBashDesktop.ViewModels
                     await LoadBranchesAsync();
                     Views.MainWindow.Instance?.ReinitBranchesView();
 
-                    // Also refresh dashboard
-                    var dashVm = (Views.MainWindow.Instance?._dashboardView?.DataContext
-                        as DashboardViewModel);
+                    // Refresh dashboard branch badge
+                    var dashVm = Views.MainWindow.Instance?._dashboardView?.DataContext
+                        as DashboardViewModel;
                     _ = dashVm?.RefreshCommand.ExecuteAsync(null);
                 }
                 else

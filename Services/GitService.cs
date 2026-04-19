@@ -22,6 +22,7 @@ namespace GitBashDesktop.Services
         // ── Core runner ──────────────────────────────────────────────────────
         public async Task<GitResult> RunAsync(string arguments)
         {
+            Views.MainWindow.SetBusy(true);
             PrintToTerminal($"$ git {arguments}");
 
             var process = new Process
@@ -75,6 +76,7 @@ namespace GitBashDesktop.Services
                 PrintToTerminal($"[Error] {result.Error}");
 
             PrintToTerminal("");
+            Views.MainWindow.SetBusy(false);
             return result;
         }
 

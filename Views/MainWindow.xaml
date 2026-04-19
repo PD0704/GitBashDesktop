@@ -164,34 +164,58 @@
 
         <!-- ===== COMMAND BAR ===== -->
         <Border Grid.Column="1" Grid.Row="1"
-                Background="{DynamicResource AccentBlueBrush}"
-                Padding="16,8">
+        Background="{DynamicResource AccentBlueBrush}"
+        Padding="16,8">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="$"
-                           Foreground="White"
-                           FontFamily="Consolas"
-                           FontSize="13"
-                           VerticalAlignment="Center"
-                           Margin="0,0,8,0"/>
+                <TextBlock Grid.Column="0"
+                   Text="$"
+                   Foreground="White"
+                   FontFamily="Consolas"
+                   FontSize="13"
+                   VerticalAlignment="Center"
+                   Margin="0,0,8,0"/>
                 <TextBlock Grid.Column="1"
-                           x:Name="CommandPreviewText"
-                           Text="git status"
-                           Foreground="White"
-                           FontFamily="Consolas"
-                           FontSize="13"
-                           VerticalAlignment="Center"/>
+                   x:Name="CommandPreviewText"
+                   Text="git status"
+                   Foreground="White"
+                   FontFamily="Consolas"
+                   FontSize="13"
+                   VerticalAlignment="Center"/>
                 <TextBlock Grid.Column="2"
-                           x:Name="CommandExplainText"
-                           Text="shows current repo status"
-                           Foreground="#BDD9F2"
-                           FontSize="11"
-                           VerticalAlignment="Center"
-                           FontStyle="Italic"/>
+                   x:Name="CommandExplainText"
+                   Text="shows current repo status"
+                   Foreground="#BDD9F2"
+                   FontSize="11"
+                   VerticalAlignment="Center"
+                   FontStyle="Italic"
+                   Margin="0,0,12,0"/>
+                <Border Grid.Column="3"
+                x:Name="BusyIndicator"
+                Width="10" Height="10"
+                CornerRadius="5"
+                Background="White"
+                Opacity="0"
+                VerticalAlignment="Center">
+                    <Border.Triggers>
+                        <EventTrigger RoutedEvent="Border.Loaded">
+                            <BeginStoryboard>
+                                <Storyboard RepeatBehavior="Forever">
+                                    <DoubleAnimation
+                                Storyboard.TargetName="BusyIndicator"
+                                Storyboard.TargetProperty="Opacity"
+                                From="0" To="1" Duration="0:0:0.5"
+                                AutoReverse="True"/>
+                                </Storyboard>
+                            </BeginStoryboard>
+                        </EventTrigger>
+                    </Border.Triggers>
+                </Border>
             </Grid>
         </Border>
 
@@ -205,21 +229,41 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
-                <TextBlock Text="TERMINAL"
-                           Foreground="{DynamicResource TerminalMutedBrush}"
-                           FontSize="10"
-                           FontWeight="SemiBold"
-                           Margin="12,6"/>
-                <ScrollViewer x:Name="TerminalScroller" 
-                              Grid.Row="1"
-                              VerticalScrollBarVisibility="Auto">
+
+                <!-- Terminal header -->
+                <Grid Grid.Row="0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0"
+                       Text="TERMINAL"
+                       Foreground="{DynamicResource TerminalMutedBrush}"
+                       FontSize="10" FontWeight="SemiBold"
+                       Margin="12,6"/>
+                    <Button Grid.Column="1"
+                    Content="Clear"
+                    Click="ClearTerminal_Click"
+                    Margin="0,4,8,4"
+                    Padding="8,2" FontSize="10"
+                    Cursor="Hand"
+                    Background="Transparent"
+                    Foreground="{DynamicResource TerminalMutedBrush}"
+                    BorderBrush="{DynamicResource TerminalMutedBrush}"
+                    BorderThickness="1"/>
+                </Grid>
+
+                <!-- Terminal output -->
+                <ScrollViewer x:Name="TerminalScroller"
+                      Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto">
                     <TextBlock x:Name="TerminalOutput"
-                               Foreground="{DynamicResource TerminalTextBrush}"
-                               FontFamily="Consolas"
-                               FontSize="12"
-                               Margin="12,0,12,12"
-                               TextWrapping="Wrap"
-                               Text="$ Ready"/>
+                       Foreground="{DynamicResource TerminalTextBrush}"
+                       FontFamily="Consolas"
+                       FontSize="12"
+                       Margin="12,0,12,12"
+                       TextWrapping="Wrap"
+                       Text="$ Ready"/>
                 </ScrollViewer>
             </Grid>
         </Border>

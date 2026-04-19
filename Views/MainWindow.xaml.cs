@@ -75,7 +75,22 @@ namespace GitBashDesktop.Views
                 TerminalScroller.ScrollToEnd();
             });
         }
+        private void ClearTerminal_Click(object sender, RoutedEventArgs e)
+        {
+            TerminalOutput.Text = "";
+        }
 
+
+        public static void SetBusy(bool busy)
+        {
+            Instance?.Dispatcher.Invoke(() =>
+            {
+                if (Instance?.BusyIndicator != null)
+                    Instance.BusyIndicator.Visibility = busy
+                        ? Visibility.Visible
+                        : Visibility.Collapsed;
+            });
+        }
         public static void UpdateCommandBar(string command, string explanation)
         {
             Instance?.Dispatcher.Invoke(() =>
@@ -258,9 +273,15 @@ namespace GitBashDesktop.Views
             {
                 Instance?.UpdateRepoState();
                 if (Instance != null)
-                    Instance.SidebarRepoName.Text = Git.RepoPath != ""
+                {
+                    var repoName = Git.RepoPath != ""
                         ? System.IO.Path.GetFileName(Git.RepoPath)
                         : "";
+                    Instance.SidebarRepoName.Text = repoName;
+                    Instance.Title = repoName != ""
+                        ? $"GitBash Desktop — {repoName}"
+                        : "GitBash Desktop";
+                }
             });
         }
 
