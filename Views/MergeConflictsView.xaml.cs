@@ -1,26 +1,26 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using System.Windows;
+﻿using GitBashDesktop.Models;
+using GitBashDesktop.Services;
+using GitBashDesktop.ViewModels;
 using System.Windows.Controls;
-using System.Windows.Data;
-using System.Windows.Documents;
-using System.Windows.Input;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
-using System.Windows.Navigation;
-using System.Windows.Shapes;
 
 namespace GitBashDesktop.Views
 {
-    /// <summary>
-    /// Interaction logic for DashboardView.xaml
-    /// </summary>
     public partial class MergeConflictsView : UserControl
     {
-        public MergeConflictsView()
+        public MergeConflictsView(GitService git)
         {
             InitializeComponent();
+            DataContext = new MergeConflictsViewModel(git);
+        }
+
+        private void ConflictFiles_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (sender is ListView lv &&
+                lv.SelectedItem is ConflictFile file &&
+                DataContext is MergeConflictsViewModel vm)
+            {
+                vm.SelectFileCommand.Execute(file);
+            }
         }
     }
 }

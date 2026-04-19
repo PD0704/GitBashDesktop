@@ -9,8 +9,8 @@ namespace GitBashDesktop.Views
     {
         private bool _isDark = true;
         private Button? _activeButton;
-        private DashboardView? _dashboardView;
-        private BranchesView? _branchesView;
+        internal DashboardView? _dashboardView;
+        internal BranchesView? _branchesView;
         public static bool RepoIsOpen => Git.HasRepo;
         public bool RepoVisible => Git.HasRepo;
         // Shared across all views
@@ -134,7 +134,7 @@ namespace GitBashDesktop.Views
                 "dashboard" => _dashboardView,
                 "branches" => Git.HasRepo ? _branchesView : _dashboardView,
                 "history" => Git.HasRepo ? new CommitHistoryView(Git) : _dashboardView,
-                "conflicts" => new MergeConflictsView(),
+                "conflicts" => Git.HasRepo ? new MergeConflictsView(Git) : _dashboardView,
                 "settings" => new SettingsView(),
                 _ => _dashboardView
             };

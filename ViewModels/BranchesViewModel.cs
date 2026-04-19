@@ -106,8 +106,16 @@ namespace GitBashDesktop.ViewModels
             {
                 // Branch might already exist locally, just switch to it
                 var switchResult = await _git.SwitchBranchAsync(localName);
-                if (switchResult.Success)
+                if (result.Success)
+                {
                     await LoadBranchesAsync();
+                    Views.MainWindow.Instance?.ReinitBranchesView();
+
+                    // Also refresh dashboard
+                    var dashVm = (Views.MainWindow.Instance?._dashboardView?.DataContext
+                        as DashboardViewModel);
+                    _ = dashVm?.RefreshCommand.ExecuteAsync(null);
+                }
                 else
                     MessageBox.Show(
                         "Could not checkout branch. Check the terminal for details.",
@@ -287,6 +295,53 @@ namespace GitBashDesktop.ViewModels
                 "downloads all remote branch updates");
 
             await _git.FetchAsync();
+            IsBusy = false;
+        }
+
+        // ── Merge ─────────────────────────────────────────────────────────
+        [RelayCommand]
+        private async Task MergeAsync(BranchInfo branch)
+        {
+            if (branch.Name == CurrentBranch)
+            {
+                MessageBox.Show("You cannot merge a branch into itself.",
+                    "Invalid", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            var confirm = MessageBox.Show(
+                $"Merge '{branch.Name}' into '{CurrentBranch}'?",
+                "Confirm merge", MessageBoxButton.YesNo, MessageBoxImage.Question);
+
+            if (confirm != MessageBoxResult.Yes) return;
+
+            IsBusy = true;
+            Views.MainWindow.UpdateCommandBar(
+                $"git merge {branch.Name}",
+                $"merges '{branch.Name}' into current branch");
+
+            var result = await _git.MergeAsync(branch.Name);
+
+            if (result.Success)
+            {
+                MessageBox.Show(
+                    $"Merged '{branch.Name}' into '{CurrentBranch}' successfully!",
+                    "Merge successful", MessageBoxButton.OK, MessageBoxImage.Information);
+                await LoadBranchesAsync();
+            }
+            else if (result.Output.Contains("CONFLICT") ||
+                     result.Error.Contains("CONFLICT"))
+            {
+                MessageBox.Show(
+                    $"Merge conflict detected!\n\nGo to Merge Conflicts view to resolve them.",
+                    "Conflicts found", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+            else
+            {
+                MessageBox.Show("Merge failed. Check the terminal for details.",
+                    "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+
             IsBusy = false;
         }
     }

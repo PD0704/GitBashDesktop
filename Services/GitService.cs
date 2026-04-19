@@ -241,8 +241,9 @@ namespace GitBashDesktop.Services
             return process.ExitCode == 0;
         }
 
+        #region Commit History
         public async Task<GitResult> GetBranchNamesAsync()
-    => await RunAsync("branch --format=%(refname:short)");
+=> await RunAsync("branch --format=%(refname:short)");
 
         public async Task<GitResult> GetLogForBranchAsync(string branch, int count = 100)
             => await RunAsync(
@@ -256,6 +257,26 @@ namespace GitBashDesktop.Services
 
         public async Task<GitResult> CreateBranchFromCommitAsync(string branchName, string hash)
             => await RunAsync($"checkout -b {branchName} {hash}");
+        #endregion
+
+        #region Commit Merge
+        public async Task<GitResult> MergeAsync(string branchName)
+    => await RunAsync($"merge {branchName}");
+        public async Task<GitResult> GetConflictedFilesAsync()
+    => await RunAsync("diff --name-only --diff-filter=U");
+
+        public async Task<GitResult> GetConflictContentAsync(string filePath)
+            => await RunAsync($"show :1:\"{filePath}\"");
+
+        public async Task<GitResult> MarkResolvedAsync(string filePath)
+            => await RunAsync($"add \"{filePath}\"");
+
+        public async Task<GitResult> AbortMergeAsync()
+            => await RunAsync("merge --abort");
+
+        public async Task<GitResult> GetMergeMessageAsync()
+            => await RunAsync("cat-file -p MERGE_HEAD");
+        #endregion
 
         // ── Terminal helper ──────────────────────────────────────────────────
         private void PrintToTerminal(string text)
