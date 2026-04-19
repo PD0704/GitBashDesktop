@@ -67,6 +67,19 @@ namespace GitBashDesktop.ViewModels
             LoadRecentRepos();
         }
 
+        [RelayCommand]
+        private async Task OpenRecentFromPathAsync(string path)
+        {
+            if (string.IsNullOrEmpty(path)) return;
+            await OpenRepoFromPathAsync(path);
+
+            _storage.AddOrUpdate(path);
+            LoadRecentRepos();
+
+            // Save as last repo path
+            Views.MainWindow.Settings.Set<string>(s => s.LastRepoPath = path);
+        }
+
         // ── Open repo ─────────────────────────────────────────────────────────
         [RelayCommand]
         private async Task OpenRepoAsync()
@@ -79,7 +92,7 @@ namespace GitBashDesktop.ViewModels
             await OpenRepoFromPathAsync(dialog.FolderName);
         }
 
-        private async Task OpenRepoFromPathAsync(string path)
+        public async Task OpenRepoFromPathAsync(string path)
         {
             var isRepo = await _git.IsGitRepoAsync(path);
             if (!isRepo)
@@ -100,7 +113,9 @@ namespace GitBashDesktop.ViewModels
             RepoName = System.IO.Path.GetFileName(path);
 
             _storage.AddOrUpdate(path);
+            _storage.AddOrUpdate(path);
             LoadRecentRepos();
+            Views.MainWindow.Settings.Set<string>(s => s.LastRepoPath = path); // Add this
 
             Views.MainWindow.Instance?.ReinitBranchesView();
             Views.MainWindow.NotifyRepoOpened();

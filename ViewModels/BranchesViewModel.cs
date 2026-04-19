@@ -3,6 +3,8 @@ using CommunityToolkit.Mvvm.Input;
 using GitBashDesktop.Services;
 using System.Collections.ObjectModel;
 using System.Windows;
+using System.Windows.Media;
+
 
 namespace GitBashDesktop.ViewModels
 {
@@ -355,7 +357,11 @@ namespace GitBashDesktop.ViewModels
         public bool IsDefault { get; }
 
         public string CurrentIndicator => IsCurrent ? "●" : "";
-        public string NameColor => IsCurrent ? "#007ACC" : "#CCCCCC";
+        public string NameColor => IsCurrent
+            ? "#007ACC"
+            : Application.Current.Resources["TextPrimaryBrush"] is SolidColorBrush brush
+                ? brush.Color.ToString()
+                : "#CCCCCC";
         public Visibility DeleteVisible => IsDefault
             ? Visibility.Collapsed
             : Visibility.Visible;

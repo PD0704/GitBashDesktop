@@ -251,6 +251,7 @@
             <helpers:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisibility"/>
             <helpers:StringToLinesConverter x:Key="StringToLinesConverter"/>
             <helpers:NullToVisibilityConverter x:Key="NullToVisibility"/>
+            <helpers:StringToVisibilityConverter x:Key="StringToVisibilityConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

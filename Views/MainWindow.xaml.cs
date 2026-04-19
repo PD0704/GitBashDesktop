@@ -11,28 +11,60 @@ namespace GitBashDesktop.Views
         private Button? _activeButton;
         internal DashboardView? _dashboardView;
         internal BranchesView? _branchesView;
+        internal SettingsView? _settingsView;
+
         public static bool RepoIsOpen => Git.HasRepo;
         public bool RepoVisible => Git.HasRepo;
-        // Shared across all views
+
         public static GitService Git { get; private set; } = new GitService();
         public static Action<string>? TerminalCallback { get; private set; }
         public static MainWindow? Instance { get; private set; }
+        public static SettingsService Settings { get; private set; } = new SettingsService();
+        public static bool IsExpertMode { get; private set; } = false;
+
         public MainWindow()
         {
             InitializeComponent();
             Instance = this;
             TerminalCallback = AppendTerminal;
-            // Hook terminal output to the terminal panel
             Git.Initialize("", AppendTerminal);
+
+            var settings = Settings.Load();
+            _isDark = settings.IsDarkTheme;
+            IsExpertMode = settings.IsExpertMode;
+            ApplyTheme(_isDark);
+            ThemeToggleBtn.Content = _isDark ? "☀" : "☾";
+            UpdateModeUI(IsExpertMode);
+
             LoadGitUser();
             InitViews();
             NavigateTo("dashboard", null);
+
+            // Auto-open last repo after UI is ready
+            if (settings.AutoOpenLastRepo &&
+                !string.IsNullOrEmpty(settings.LastRepoPath) &&
+                System.IO.Directory.Exists(settings.LastRepoPath))
+            {
+                Dispatcher.BeginInvoke(new System.Action(async () =>
+                {
+                    var vm = _dashboardView?.DataContext
+                        as ViewModels.DashboardViewModel;
+                    if (vm != null)
+                        await vm.OpenRepoFromPathAsync(settings.LastRepoPath);
+                }), System.Windows.Threading.DispatcherPriority.Loaded);
+            }
         }
 
         private void InitViews()
         {
             _dashboardView = new DashboardView(Git);
             _branchesView = new BranchesView(Git);
+            _settingsView = new SettingsView(Git, Settings);
+        }
+
+        public void ReinitSettingsView()
+        {
+            _settingsView = new SettingsView(Git, Settings);
         }
 
         private void AppendTerminal(string text)
@@ -42,28 +74,6 @@ namespace GitBashDesktop.Views
                 TerminalOutput.Text += text + "\n";
                 TerminalScroller.ScrollToEnd();
             });
-        }
-        public static void UpdateSidebarRepo(string repoName)
-        {
-            Instance?.Dispatcher.Invoke(() =>
-            {
-                if (Instance == null) return;
-                Instance.SidebarRepoName.Text = repoName;
-                // Refresh binding
-                Instance.MainWindowRoot?.InvalidateProperty(
-                    Window.ContentProperty);
-            });
-        }
-        private ScrollViewer? FindScrollViewer(DependencyObject obj)
-        {
-            if (obj is ScrollViewer sv) return sv;
-            for (int i = 0; i < VisualTreeHelper.GetChildrenCount(obj); i++)
-            {
-                var child = VisualTreeHelper.GetChild(obj, i);
-                var result = FindScrollViewer(child);
-                if (result != null) return result;
-            }
-            return null;
         }
 
         public static void UpdateCommandBar(string command, string explanation)
@@ -81,7 +91,6 @@ namespace GitBashDesktop.Views
             {
                 var name = RunGitCommand("config user.name").Trim();
                 var email = RunGitCommand("config user.email").Trim();
-
                 if (!string.IsNullOrEmpty(name))
                 {
                     AccountName.Text = name;
@@ -109,23 +118,23 @@ namespace GitBashDesktop.Views
 
         private void NavigateTo(string? page, Button? btn)
         {
-            // Block navigation to other pages if no repo open
             if (!Git.HasRepo && page != "dashboard" && page != "settings")
             {
                 MessageBox.Show(
                     "Please open a repository first.",
-                    "No repository", MessageBoxButton.OK, MessageBoxImage.Information);
+                    "No repository", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
                 return;
             }
 
-            // Highlight active button
             if (_activeButton != null)
                 _activeButton.Background = Brushes.Transparent;
 
             if (btn != null)
             {
                 btn.Background = new SolidColorBrush(
-                    (Color)ColorConverter.ConvertFromString(_isDark ? "#37373D" : "#D0D0D0"));
+                    (Color)ColorConverter.ConvertFromString(
+                        _isDark ? "#37373D" : "#D0D0D0"));
                 _activeButton = btn;
             }
 
@@ -135,7 +144,7 @@ namespace GitBashDesktop.Views
                 "branches" => Git.HasRepo ? _branchesView : _dashboardView,
                 "history" => Git.HasRepo ? new CommitHistoryView(Git) : _dashboardView,
                 "conflicts" => Git.HasRepo ? new MergeConflictsView(Git) : _dashboardView,
-                "settings" => new SettingsView(),
+                "settings" => _settingsView,
                 _ => _dashboardView
             };
 
@@ -158,6 +167,13 @@ namespace GitBashDesktop.Views
                 "settings" => "lists all git configuration",
                 _ => "shows working tree status"
             };
+
+            if (page == "dashboard" && Git.HasRepo)
+            {
+                var vm = _dashboardView?.DataContext
+                    as ViewModels.DashboardViewModel;
+                _ = vm?.RefreshCommand.ExecuteAsync(null);
+            }
         }
 
         private string RunGitCommand(string args)
@@ -182,12 +198,20 @@ namespace GitBashDesktop.Views
             _isDark = !_isDark;
             ApplyTheme(_isDark);
             ThemeToggleBtn.Content = _isDark ? "☀" : "☾";
+            Settings.Set<bool>(s => s.IsDarkTheme = _isDark);
+
+            if (_activeButton != null)
+                _activeButton.Background = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString(
+                        _isDark ? "#37373D" : "#D0D0D0"));
+
+            // Sync settings page checkbox
+            ReinitSettingsCheckbox(IsExpertMode);
         }
 
         private void ApplyTheme(bool dark)
         {
             var res = Application.Current.Resources;
-
             if (dark)
             {
                 res["AppBgBrush"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#1E1E1E"));
@@ -217,12 +241,9 @@ namespace GitBashDesktop.Views
                 res["TerminalBorderBrush"] = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#CCCCCC"));
             }
 
-            // Update active button highlight to match new theme
             if (_activeButton != null)
-            {
                 _activeButton.Background = new SolidColorBrush(
                     (Color)ColorConverter.ConvertFromString(dark ? "#37373D" : "#D0D0D0"));
-            }
         }
 
         private void SwitchAccount_Click(object sender, RoutedEventArgs e)
@@ -245,7 +266,6 @@ namespace GitBashDesktop.Views
 
         private void UpdateRepoState()
         {
-            // If no repo, force back to dashboard
             if (!Git.HasRepo)
                 NavigateTo("dashboard", null);
         }
@@ -253,6 +273,67 @@ namespace GitBashDesktop.Views
         public void ReinitBranchesView()
         {
             _branchesView = new BranchesView(Git);
+        }
+
+        public static void SetExpertMode(bool expert)
+        {
+            IsExpertMode = expert;
+            Settings.Set<bool>(s => s.IsExpertMode = expert);
+            Instance?.Dispatcher.Invoke(() =>
+            {
+                Instance?.UpdateModeUI(expert);
+                // Also update settings view checkbox
+                Instance?.ReinitSettingsCheckbox(expert);
+            });
+        }
+
+        private void ReinitSettingsCheckbox(bool expert)
+        {
+            if (_settingsView?.DataContext is ViewModels.SettingsViewModel vm)
+            {
+                vm.IsExpertMode = expert;
+                vm.IsDarkTheme = _isDark;
+            }
+        }
+
+        private void UpdateModeUI(bool expert)
+        {
+            CommandExplainText.Visibility = expert
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            if (ExpertModeBtn != null)
+                ExpertModeBtn.Opacity = expert ? 1.0 : 0.4;
+        }
+
+        public void SimulateThemeToggle(bool dark)
+        {
+            if (_isDark == dark) return;
+            _isDark = dark;
+            ApplyTheme(_isDark);
+            ThemeToggleBtn.Content = _isDark ? "☀" : "☾";
+            Settings.Set<bool>(s => s.IsDarkTheme = _isDark);
+            if (_activeButton != null)
+                _activeButton.Background = new SolidColorBrush(
+                    (Color)ColorConverter.ConvertFromString(
+                        _isDark ? "#37373D" : "#D0D0D0"));
+        }
+
+        private void ExpertModeBtn_Click(object sender, RoutedEventArgs e)
+        {
+            var expert = !IsExpertMode;
+            SetExpertMode(expert);
+            ExpertModeBtn.ToolTip = expert
+                ? "Expert mode — click for beginner mode"
+                : "Beginner mode — click for expert mode";
+        }
+
+        public static void UpdateSidebarRepo(string repoName)
+        {
+            Instance?.Dispatcher.Invoke(() =>
+            {
+                if (Instance != null)
+                    Instance.SidebarRepoName.Text = repoName;
+            });
         }
     }
 }
